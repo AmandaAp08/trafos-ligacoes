@@ -11,7 +11,7 @@
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
 <style>
-:root{--apto:#22c55e;--nao:#ef4444;--inst:#3b82f6;--pend:#64748b;--sel:#f59e0b;--acc:#6366f1;--bg:#0f1117;--bg2:#1a1d27;--bg3:#22263a;--bd:rgba(255,255,255,0.08);--tx:#f1f5f9;--mu:#64748b;}
+:root{--apto:#22c55e;--nao:#ef4444;--inst:#3b82f6;--pend:#64748b;--sel:#f59e0b;--acc:#6366f1;--bg:#0f1117;--bg2:#1a1d27;--bg3:#22263a;--bd:rgba(255,255,255,0.08);--tx:#f1f5f9;--mu:#64748b;--rosa:#FF007F;}
 *{margin:0;padding:0;box-sizing:border-box;}
 html,body{height:100%;overflow:hidden;font-family:'IBM Plex Sans',sans-serif;background:var(--bg);color:var(--tx);}
 body{display:flex;flex-direction:column;}
@@ -144,7 +144,7 @@ header{height:50px;display:flex;align-items:center;justify-content:space-between
 @keyframes load{0%{transform:translateX(-100%);}100%{transform:translateX(100%);}}
 </style>
 </head>
-<body>
+<body onload="initNome()">
 
 <div class="loading-bar" id="loadBar"></div>
 
@@ -187,7 +187,6 @@ header{height:50px;display:flex;align-items:center;justify-content:space-between
 </header>
 
 <div class="main">
-  <!-- TOGGLE -->
   <button class="sidebar-toggle open" id="sidebarToggle" onclick="toggleSidebar()">
     <svg viewBox="0 0 12 12"><path d="M8 2L4 6l4 4" stroke="white" stroke-width="1.5" fill="none" stroke-linecap="round"/></svg>
   </button>
@@ -221,7 +220,6 @@ header{height:50px;display:flex;align-items:center;justify-content:space-between
   <div id="map"></div>
 </div>
 
-<!-- DETAIL -->
 <div class="detail" id="det">
   <button class="det-close" onclick="closeDet()">✕</button>
   <div class="det-id" id="dId"></div>
@@ -232,7 +230,6 @@ header{height:50px;display:flex;align-items:center;justify-content:space-between
     <button class="sbtn" id="bI" onclick="setStatus('instalado')">⚡ Instalado</button>
   </div>
 
-  <!-- OBSERVAÇÃO (aparece só quando Não apto) -->
   <div class="obs-box" id="obsBox">
     <div class="obs-label">⚠ Motivo / Observação</div>
     <textarea class="obs-input" id="obsInput" placeholder="Descreva o motivo de não estar apto..."></textarea>
@@ -244,7 +241,6 @@ header{height:50px;display:flex;align-items:center;justify-content:space-between
   <div class="det-who" id="dWho"></div>
 </div>
 
-<!-- UPLOAD -->
 <div class="overlay" id="upOv" style="display:none">
   <div class="panel">
     <div class="ptitle">Importar base de trafos</div>
@@ -272,7 +268,6 @@ header{height:50px;display:flex;align-items:center;justify-content:space-between
   </div>
 </div>
 
-<!-- NOME -->
 <div class="nome-modal" id="nomeModal" style="display:none">
   <div class="nome-box">
     <h2>Olá! Qual é o seu nome?</h2>
@@ -305,6 +300,36 @@ var obsRef = db.ref('observacoes');
 // ── STATE ──
 var trafos=[], mkrs={}, selId=null, filt='all', pData=[], pHdrs=[], statusMap={}, obsMap={}, userName='';
 var sidebarOpen = true;
+var userMarker = null; // Para o ponto rosa
+
+// ── MAP ──
+var map=L.map('map',{center:[-5.09,-42.81],zoom:12,zoomControl:false});
+L.control.zoom({position:'bottomright'}).addTo(map);
+L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',{attribution:'&copy; OpenStreetMap &copy; CARTO',maxZoom:19}).addTo(map);
+
+// ── LOCALIZAÇÃO DO USUÁRIO (PONTO ROSA FORTE) ──
+map.locate({setView: false, watch: true});
+
+map.on('locationfound', function(e) {
+    var radius = e.accuracy / 2;
+    if (userMarker) {
+        userMarker.setLatLng(e.latlng);
+    } else {
+        userMarker = L.circleMarker(e.latlng, {
+            radius: 8,
+            fillColor: "#FF007F", // Rosa Forte
+            color: "#FFFFFF",      // Borda Branca
+            weight: 2,
+            opacity: 1,
+            fillOpacity: 0.9,
+            zIndexOffset: 1000
+        }).addTo(map).bindPopup("Você está aqui");
+    }
+});
+
+map.on('locationerror', function(e) {
+    console.log("Acesso à localização negado ou indisponível.");
+});
 
 // ── SIDEBAR TOGGLE ──
 function toggleSidebar(){
@@ -335,9 +360,7 @@ function salvarNome(){
   document.getElementById('nomeModal').style.display='none';
   iniciarSistema();
 }
-document.getElementById('nomeInput').addEventListener('keydown',function(e){if(e.key==='Enter')salvarNome();});
 
-// ── INICIAR ──
 function iniciarSistema(){
   setLoading(true);
   trafosRef.on('value',function(snap){
@@ -366,11 +389,6 @@ function iniciarSistema(){
   });
 }
 
-// ── MAP ──
-var map=L.map('map',{center:[-5.09,-42.81],zoom:12,zoomControl:false});
-L.control.zoom({position:'bottomright'}).addTo(map);
-L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',{attribution:'&copy; OpenStreetMap &copy; CARTO',maxZoom:19}).addTo(map);
-
 var SC={apto:'#22c55e',nao_apto:'#ef4444',instalado:'#3b82f6',pendente:'#64748b',selecionado:'#f59e0b'};
 var SL={apto:'Apto',nao_apto:'Não apto',instalado:'Instalado',pendente:'Pendente'};
 
@@ -393,28 +411,20 @@ function redesenharMapa(){
       .addTo(map).on('click',function(){selTrafo(t.id);});
     bounds.push([t.lat,t.lng]);
   });
-  if(bounds.length) map.fitBounds(bounds,{padding:[40,40]});
+  if(bounds.length && !userMarker) map.fitBounds(bounds,{padding:});
 }
 
-// ── TRAFO SELECTION ──
 function selTrafo(id){
-  // reset marcador anterior
   if(selId && mkrs[selId]){
     var prev=trafos.find(function(x){return x.id===selId;});
     if(prev) mkrs[selId].setIcon(mkIcon(prev.status||'pendente',false));
   }
   selId=id;
   var t=trafos.find(function(x){return x.id===id;});if(!t)return;
-
-  // marca amarelo no mapa
   if(mkrs[id]) mkrs[id].setIcon(mkIcon(t.status||'pendente',true));
-
-  // lista
   document.querySelectorAll('.titem').forEach(function(e){e.classList.remove('sel');});
-  var el=document.querySelector('[data-id="'+CSS.escape(id)+'"]');
+  var el=document.querySelector('[data-id="'+id+'"]');
   if(el){el.classList.add('sel');el.scrollIntoView({block:'nearest'});}
-
-  // painel
   document.getElementById('dId').textContent=t.name||t.id;
   document.getElementById('dAddr').textContent=t.addr||'—';
   document.getElementById('dCoord').textContent=t.lat.toFixed(6)+', '+t.lng.toFixed(6);
@@ -427,7 +437,6 @@ function updDet(s){
   document.getElementById('bA').className='sbtn'+(s==='apto'?' a':'');
   document.getElementById('bN').className='sbtn'+(s==='nao_apto'?' n':'');
   document.getElementById('bI').className='sbtn'+(s==='instalado'?' i':'');
-  // mostrar/esconder campo de observação
   var obs=document.getElementById('obsBox');
   if(s==='nao_apto'){obs.classList.add('show');}
   else{obs.classList.remove('show');}
@@ -484,10 +493,8 @@ function closeDet(){
   }
   document.getElementById('det').classList.remove('show');
   selId=null;
-  document.querySelectorAll('.titem').forEach(function(e){e.classList.remove('sel');});
 }
 
-// ── LIST ──
 function renderList(){
   var q=(document.getElementById('srch').value||'').toLowerCase();
   var fil=trafos.filter(function(t){
@@ -500,13 +507,10 @@ function renderList(){
   if(!fil.length){el.innerHTML='<div class="empty">Nenhum resultado.</div>';return;}
   el.innerHTML=fil.map(function(t){
     var s=t.status||'pendente',c=SC[s],l=SL[s];
-    var isNao=s==='nao_apto';
-    var bg=s==='apto'?'rgba(34,197,94,.15)':isNao?'rgba(239,68,68,.15)':s==='instalado'?'rgba(59,130,246,.15)':'rgba(100,116,139,.15)';
-    var sid=t.id.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
-    var obsIcon=obsMap[t.id]&&obsMap[t.id].texto?' 💬':'';
-    return '<div class="titem'+(selId===t.id?' sel':'')+'" data-id="'+escHtml(t.id)+'" onclick="selTrafo(\''+sid+'\')">'+
+    var bg=s==='apto'?'rgba(34,197,94,.15)':s==='nao_apto'?'rgba(239,68,68,.15)':s==='instalado'?'rgba(59,130,246,.15)':'rgba(100,116,139,.15)';
+    return '<div class="titem'+(selId===t.id?' sel':'')+'" data-id="'+t.id+'" onclick="selTrafo(\''+t.id+'\')">'+
       '<div class="tdot" style="background:'+(selId===t.id?'#f59e0b':c)+'"></div>'+
-      '<div class="tinfo"><div class="tid">'+escHtml(t.name)+obsIcon+'</div><div class="tsub">'+escHtml(t.addr||t.lat.toFixed(4)+', '+t.lng.toFixed(4))+'</div></div>'+
+      '<div class="tinfo"><div class="tid">'+t.name+'</div><div class="tsub">'+(t.addr||t.lat.toFixed(4)+', '+t.lng.toFixed(4))+'</div></div>'+
       '<div class="tbadge" style="background:'+bg+';color:'+c+'">'+l+'</div></div>';
   }).join('');
 }
@@ -534,91 +538,28 @@ function updStats(){
   document.getElementById('sI').style.width=(tot?i/tot*100:0)+'%';
 }
 
-// ── UPLOAD ──
 function showUp(){document.getElementById('upOv').style.display='flex';}
-function hideUp(){
-  document.getElementById('upOv').style.display='none';pData=[];pHdrs=[];
-  document.getElementById('cm').style.display='none';
-  document.getElementById('bImp').disabled=true;
-  document.getElementById('fi').value='';
-  document.getElementById('dz').innerHTML='<svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8l-6-6zm-1 1.5L18.5 9H13V3.5zM12 17l-4-4h2.5v-4h3v4H16l-4 4z"/></svg><p><strong>Clique para selecionar</strong> ou arraste o CSV aqui</p><p style="margin-top:4px;font-size:10px;">Formato: .csv</p>';
-}
-function dgo(e){e.preventDefault();document.getElementById('dz').classList.add('dg');}
-function dgl(){document.getElementById('dz').classList.remove('dg');}
-function ddr(e){e.preventDefault();dgl();var f=e.dataTransfer.files[0];if(f)procFile(f);}
-function handleFile(e){var f=e.target.files[0];if(f)procFile(f);}
+function hideUp(){document.getElementById('upOv').style.display='none';}
 
-function procFile(f){
-  var reader=new FileReader();
-  reader.onload=function(ev){
-    var txt=ev.target.result;
-    var fl=txt.split('\n')[0]||'';
-    var delim=(fl.split(';').length>fl.split(',').length)?';':',';
-    Papa.parse(f,{header:true,skipEmptyLines:true,delimiter:delim,
-      complete:function(res){
-        pData=res.data;pHdrs=res.meta.fields||[];
-        fillSel();
-        document.getElementById('cm').style.display='block';
-        document.getElementById('bImp').disabled=false;
-        document.getElementById('dz').innerHTML='<p style="font-size:20px;margin-bottom:6px">✅</p><p><strong>'+pData.length+' linhas detectadas</strong></p><p style="font-size:10px;margin-top:3px">Confirme as colunas abaixo</p>';
-      },
-      error:function(err){alert('Erro: '+err.message);}
-    });
-  };
-  reader.readAsText(f,'UTF-8');
-}
-
-function fillSel(){
-  var opts='<option value="">— ignorar —</option>'+pHdrs.map(function(h){return '<option value="'+escHtml(h)+'">'+escHtml(h)+'</option>';}).join('');
-  ['cId','cAddr','cLat','cLng'].forEach(function(id){document.getElementById(id).innerHTML=opts;});
-  var low=pHdrs.map(function(h){return h.toLowerCase();});
-  function auto(kws){var idx=low.findIndex(function(h){return kws.some(function(k){return h.includes(k);});});return idx>=0?pHdrs[idx]:'';}
-  document.getElementById('cId').value=auto(['id','trafo','cod','nome','name','equip','ponto','numero']);
-  document.getElementById('cAddr').value=auto(['end','addr','descr','local','bairro','muni','rua','logr']);
-  document.getElementById('cLat').value=auto(['lat','latitude','y','coord_y','coordy']);
-  document.getElementById('cLng').value=auto(['lng','lon','long','longitude','x','coord_x','coordx']);
-}
-
-function importData(){
-  var cId=document.getElementById('cId').value,cAddr=document.getElementById('cAddr').value;
-  var cLat=document.getElementById('cLat').value,cLng=document.getElementById('cLng').value;
-  if(!cLat||!cLng){alert('Selecione Latitude e Longitude!');return;}
-  setSyncing();setLoading(true);
-  var batch={},erros=0;
-  pData.forEach(function(row,i){
-    var lat=parseFloat((row[cLat]||'').toString().replace(',','.').trim());
-    var lng=parseFloat((row[cLng]||'').toString().replace(',','.').trim());
-    if(isNaN(lat)||isNaN(lng)){erros++;return;}
-    var id=(cId&&row[cId])?String(row[cId]).trim():'T'+(i+1);
-    var key=id.replace(/[.#$\[\]/]/g,'_');
-    batch[key]={id:key,name:id,addr:cAddr?(row[cAddr]||'').trim():'',lat:lat,lng:lng};
-  });
-  trafosRef.set(batch)
-    .then(function(){setSyncOk();setLoading(false);hideUp();showToast('✓ '+Object.keys(batch).length+' trafos salvos!'+(erros?' ('+erros+' ignorados)':''));})
-    .catch(function(e){setSyncErr();setLoading(false);alert('Erro: '+e.message);});
-}
-
-function exportCSV(){
-  if(!trafos.length){alert('Nenhum dado.');return;}
-  var rows=trafos.map(function(t){
-    var st=statusMap[t.id]||{};
-    var ob=obsMap[t.id]||{};
-    return {id:t.id,nome:t.name,endereco:t.addr,latitude:t.lat,longitude:t.lng,status:t.status||'pendente',observacao:ob.texto||'',validado_por:st.by||'',data_validacao:st.at?new Date(st.at).toLocaleString('pt-BR'):''};
-  });
-  var csv=Papa.unparse(rows);
-  var blob=new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8;'});
-  var a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='trafos.csv';a.click();
-}
-
-// ── HELPERS ──
+function setLoading(b){document.getElementById('loadBar').className='loading-bar'+(b?' show':'');}
 function setSyncOk(){document.getElementById('syncDot').className='sync-dot ok';document.getElementById('syncLabel').textContent='Sincronizado';}
 function setSyncing(){document.getElementById('syncDot').className='sync-dot syncing';document.getElementById('syncLabel').textContent='Salvando...';}
-function setSyncErr(){document.getElementById('syncDot').className='sync-dot err';document.getElementById('syncLabel').textContent='Sem conexão';}
-function setLoading(on){document.getElementById('loadBar').className='loading-bar'+(on?' show':'');}
-function showToast(msg){var t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(function(){t.classList.remove('show');},3000);}
-function escHtml(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+function setSyncErr(){document.getElementById('syncDot').className='sync-dot err';document.getElementById('syncLabel').textContent='Erro de conexão';}
+function showToast(m){var t=document.getElementById('toast');t.textContent=m;t.classList.add('show');setTimeout(function(){t.classList.remove('show');},3000);}
 
-initNome();
+function exportCSV(){
+  var csv='ID;Nome;Endereco;Lat;Lng;Status;Responsavel;Data\n';
+  trafos.forEach(function(t){
+    var st=statusMap[t.id]||{};
+    var dt=st.at?new Date(st.at).toLocaleString('pt-BR'):'';
+    csv+=[t.id,t.name,t.addr,t.lat,t.lng,t.status||'pendente',st.by||'',dt].join(';')+'\n';
+  });
+  var blob=new Blob([csv],{type:'text/csv;charset=utf-8;'});
+  var link=document.createElement("a");
+  link.href=URL.createObjectURL(blob);
+  link.download="trafos_status.csv";
+  link.click();
+}
 </script>
 </body>
 </html>
